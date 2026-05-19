@@ -28,6 +28,14 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
   
+  // ✅ FIX: Tambahkan headers agar browser izinkan akses mic/camera
+  app.use((req, res, next) => {
+    res.setHeader("Permissions-Policy", "camera=*, microphone=*, autoplay=*, encrypted-media=*");
+    res.setHeader("Feature-Policy", "camera *; microphone *; autoplay *");
+    res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
+    next();
+  });
+  
   // Serve static uploads
   app.use("/uploads", express.static(uploadDir));
   
@@ -35,12 +43,10 @@ async function startServer() {
       if (!req.file) {
           return res.status(400).json({ error: "No file uploaded" });
       }
-      // Return the URL for the uploaded video
       res.json({ url: `/uploads/${req.file.filename}` });
   });
 
   const server = http.createServer(app);
-
   const io = new Server(server, {
     cors: { origin: "*" },
   });
@@ -90,8 +96,7 @@ async function startServer() {
     socket.on("video-play", ({ roomId, time }) => {
        if (rooms[roomId]) {
         rooms[roomId].videoState.playing = true;
-        rooms[roomId].videoState.time = time;
-        socket.to(roomId).emit("video-play", { time });
+        rooms[roomId].videoState.time = time;        socket.to(roomId).emit("video-play", { time });
        }
     });
 
@@ -112,9 +117,7 @@ async function startServer() {
 
     socket.on("video-upload", ({ roomId, fileDetail }) => {
         if (rooms[roomId]) {
-            // fileDetail could be { name, data, type }
-            // we broadcast the file to the room
-            rooms[roomId].videoState.url = "local-file"; // placeholder
+            rooms[roomId].videoState.url = "local-file";
             rooms[roomId].videoState.time = 0;
             rooms[roomId].videoState.playing = true;
             io.to(roomId).emit("video-upload", { fileDetail });
@@ -133,7 +136,6 @@ async function startServer() {
       if (rooms[roomId]) {
         rooms[roomId].host = newAdminId;
         io.to(roomId).emit("admin-changed", newAdminId);
-        // keep host-changed backwards compatible just in case
         io.to(roomId).emit("host-changed", newAdminId);
       }
     });
@@ -143,7 +145,6 @@ async function startServer() {
              socket.emit("video-sync", rooms[roomId].videoState);
         }
     });
-
     // WebRTC signaling
     socket.on("webrtc-offer", ({ target, offer, callerId }) => {
         io.to(target).emit("webrtc-offer", { offer, callerId });
@@ -158,7 +159,6 @@ async function startServer() {
     });
 
     socket.on("user-speaking", ({ roomId, userId, isSpeaking }) => {
-        // Broadcast speaking state
         socket.to(roomId).emit("speaking-state", { userId, isSpeaking });
     });
 
@@ -194,8 +194,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get('*', (req, res) => {      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
